@@ -34,67 +34,75 @@ engine_score <- "/user/chess/stockfish.csv"
 # Definition of Data Format
 
 gamedata_uci.classes <-
-  c(
-    GameNumber  = "factor",  Source    = "factor",   Date  = "factor",
-    Round       = "factor",   WhiteName = "factor",   BlackName = "factor",
-    Result      = "factor",   WhiteElo  = "integer",  BlackElo = "factor",
-    EmptyLine   = "factor",   Moves     = "character",EmptyLine2 = "factor"
-  )
+	c(
+	    GameNumber  = "character",	Source    = "factor",	
+	    Date  = "factor",			Round       = "factor",	
+	    WhiteName = "factor", 		BlackName = "factor",
+	    Result      = "factor",		WhiteElo  = "character",  	
+	    BlackElo 	= "character",	Moves = "character"
+	)
 
 # Custom format for MapReduce tasks
 
 gamedata_uci.format <-
-  make.input.format(
-    "csv",
-    sep = "\n",
-    colClasses = gamedata_uci.classes,
-    col.names = names(gamedata_uci.classes)
-  )
+	make.input.format(
+	    "csv",
+	    sep = ",",
+	    colClasses = gamedata_uci.classes,
+	    col.names = names(gamedata_uci.classes)
+	)
 
 ##### Data Initialization.END
 
-##### Data Reading
-
-gamedata_uci.hdfs<-from.dfs(gamedata_uci,format=gamedata_uci.format)
-
-
-#stream_chess <-from.dfs(
-#  mapreduce(
-#    input=gamedata_uci,
-#    input.format=gamedata_uci.format
-#  )
-#)
-#stream_chess_df<-values(stream_chess) ## display the data
-
-
-
-
-##### Data Reading.END
-
-
 ##### Data Processing
 
-# Test, get highest rate white player.
+## Read Data 
 
-# map.chess<-function(.,lines){
-#   keyval("WhiteElo", lines[8])        # Return the 8th element of the lines (WhiteElo)
-# }
+#TODO Decided between mapreduce and from.dfs reading method. Or take this out.
 
-# reduce.chess<-function (key,values){
-#   keyval("WhiteElo", max(values))     # Return the max value of the WhiteElo
-# }
+# Start MapReduce function to read
+mapreduce.chess <- mapreduce(
+	input = gamedata_uci,       	    # Input File
+	input.format = gamedata_uci.format	# Input Format
+)
 
-# # Start MapReduce function
-# mapreduce.chess <- mapreduce(
-#   input = gamedata,                     # Input File
-#   input.format = game.format,           # Input Format
-#   map = map.chess,                      # Map Function
-#   reduce = reduce.chess                 # Reduce Function
-# )
+# # Store values from MapReduce output
+mapreduce.chess.keys <-  keys(from.dfs(mapreduce.chess))
+
+# # View Data
+View(mapreduce.chess.values)
+
+## Read Data.END
+
+## Filter Data
+
+#TODO 	Make filter remove extraneous characters (result, Square brackets,
+#		quotes...)
+map.chess.filter<-function(.,lines){
+	value <- cbind( lines$GameNumber, lines$WhiteElo, lines$BlackElo, lines$Moves)
+  	keyval(lines$GameNumber, value)
+}
+
+reduce.chess.filter <- function(key,values)
+{
+	keyval(key, values)
+}
+
+# Start MapReduce function
+mapreduce.chess.filter <- mapreduce(
+	input = gamedata_uci,       	    # Input File
+	input.format = gamedata_uci.format,	# Input Format
+	map = map.chess.filter#,             # Map Function
+	#reduce = reduce.chess.filter 		# Reduce Function
+)
 
 # Store keys and values from MapReduce output
-# mapreduce.chess.values <- values(from.dfs(mapreduce.chess))
-# mapreduce.chess.keys <-  keys(from.dfs(mapreduce.chess))
+mapreduce.chess.filter.values <- values(from.dfs(mapreduce.chess.filter))
+mapreduce.chess.filter.keys <-  keys(from.dfs(mapreduce.chess.filter))
 
+# View Data
+View(mapreduce.chess.filter.values)
+
+## Filter Data.END
 
 ##### Data Processing.END

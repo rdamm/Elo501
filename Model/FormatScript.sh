@@ -14,10 +14,13 @@ sed '/^$/d' tempdata2.pgn > temp2_data.pgn
 tr '\n' , < temp1_data.pgn > temp1.pgn
 tr '\n' , < temp2_data.pgn > temp2.pgn
 
-sed 's/\[Event/\n\[Event/g' temp1.pgn > temp3.pgn
-sed 's/\[Event/\n\[Event/g' temp2.pgn > temp4.pgn
+# Add newlines before every game
+sed 's/,\[Event/\n\[Event/g' temp1.pgn > temp3.pgn
+sed 's/,\[Event/\n\[Event/g' temp2.pgn > temp4.pgn
 
-sed '/^$/d' temp3.pgn > FormattedData/traindata_uci1.pgn
-sed '/^$/d' temp4.pgn > FormattedData/testdata_uci1.pgn
+# Replace first empty line (created on previous step)
+sed '/^$/d' temp3.pgn > FormattedData/traindata_uci.pgn
+sed '/^$/d' temp4.pgn > FormattedData/testdata_uci.pgn
 
+# Remove all temp files created in this script
 rm temp*
