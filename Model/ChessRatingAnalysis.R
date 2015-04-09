@@ -185,6 +185,55 @@ findDeltaAverages = function(input)
 }
 
 # Run the mapreduce to get the data.
-#results <- findDeltaAverages(gamedata_uci);
-#results_keys <- keys(from.dfs(results));
-#results_values <- values(from.dfs(results));
+results <- findDeltaAverages(gamedata_uci);
+results_keys <- keys(from.dfs(results));
+results_values <- values(from.dfs(results));
+
+# Convert the values from a matrix into a data frame.
+mapreduce.chess.filter.values <- data.frame(mapreduce.chess.filter.values);
+
+# DEBUG: Copy the original data so it don't have to be reloaded if the code breaks it.
+originalValuesCopy <- mapreduce.chess.filter.values;
+#mapreduce.chess.filter.values <- originalValuesCopy;
+
+# Get the number of rows from the data set.
+numRows <- nrow(mapreduce.chess.filter.values);
+
+# Set the column names.
+colnames(mapreduce.chess.filter.values) <- c("EventId", "WhiteElo", "BlackElo", "MoveList");
+
+# Extract the number values from the ELO strings.  This requires creating a temporary data frame
+# where the columns are integers so that the conversion works ok.
+tempArray <- data.frame(WhiteElo = numeric(0), BlackElo = numeric(0));
+for (i in 1:numRows)
+{
+  tempArray[i, "WhiteElo"] <- gsub("[^0-9]", "", sapply(mapreduce.chess.filter.values[i, "WhiteElo"], as.character));
+  tempArray[i, "BlackElo"] <- gsub("[^0-9]", "", sapply(mapreduce.chess.filter.values[i, "BlackElo"], as.character));
+}
+mapreduce.chess.filter.values[,"WhiteElo"] = tempArray[,"WhiteElo"];
+mapreduce.chess.filter.values[,"BlackElo"] = tempArray[,"BlackElo"];
+#mapreduce.chess.filter.values <- transform(mapreduce.chess.filter.values, WhiteElo = as.numeric(WhiteElo), BlackElo = as.numeric(BlackElo));
+
+# TODO: Add the delta scores of each game to the original data set in columns "WhiteAverageDeltaScore" and "BlackAverageDeltaScore".
+mapreduce.chess.filter.values <- cbind(mapreduce.chess.filter.values, 1:numRows);
+mapreduce.chess.filter.values <- cbind(mapreduce.chess.filter.values, 1:numRows);
+
+# Set the new column names.
+colnames(mapreduce.chess.filter.values) <- c("EventId", "WhiteElo", "BlackElo", "MoveList", "WhiteAverageDeltaScore", "BlackAverageDeltaScore");
+
+# Copy all delta scores and ELOs into a new data frame where white and black do not factor in so we can make the model.
+allElos <- c(mapreduce.chess.filter.values[,"WhiteElo"], mapreduce.chess.filter.values[,"BlackElo"]);
+allAverageDeltaScores <- c(mapreduce.chess.filter.values[,"WhiteAverageDeltaScore"], mapreduce.chess.filter.values[,"BlackAverageDeltaScore"]);
+scoresToElos <- data.frame(allAverageDeltaScores, allElos);
+colnames(scoresToElos) <- c("AverageDeltaScore", "Elo");
+
+# Create a linear regression model of delta score to ELO.
+model <- lm(Elo ~ AverageDeltaScore, data = scoresToElos);
+predictedData <- predict(model, newdata = scoresToElos);
+
+# Get the linear model in the form Y = aX + b.
+modelCoefficients = coefficients(model);
+print(modelCoefficients);
+#duration = coeffs[1] + coeffs[2]*waiting;
+
+# TODO: Evaluate the accuracy of the linear regression model.
