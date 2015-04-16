@@ -188,26 +188,20 @@ findDeltaAverages = function(input)
       averageWhiteDelta <- totalWhiteDelta / numWhiteMoves;
       averageBlackDelta <- -totalBlackDelta / numBlackMoves;
       
-      return(keyval(gameNumber, averageWhiteDelta));
+      # Encapsulate the values in a data frame.
+      retVals <- data.frame(WhiteAverageDeltaScore = averageWhiteDelta, BlackAverageDeltaScore = averageBlackDelta);
+      
+      #return(keyval(gameNumber, averageWhiteDelta));
+      return(keyval(gameNumber, retVals));
     }
     else
     {
-      # TODO: Use NA as default score return.
-      return(keyval(gameNumber, NA));
+      # Encapsulate the values in a data frame.
+      retVals <- data.frame(WhiteAverageDeltaScore = NA, BlackAverageDeltaScore = NA);
+      
+      # TODO: Use NA as default value return.
+      return(keyval(gameNumber, retVals));
     }
-    
-    
-
-
-#     
-#     # Key = GameNumber, Value = Average Delta
-#     keyvalList <- c.keyval();
-#     keyvalList <- c.keyval(keyvalList, keyval(gameNumber, averageWhiteDelta));
-#     keyvalList <- c.keyval(keyvalList, keyval(gameNumber, averageBlackDelta));
-#     return(keyvalList);
-    
-#     value <- cbind(key, averageDeltas);
-#     keyval(key, value);
   }
   
   # Bind the mapper and reducer to a mapreduce call.
@@ -220,13 +214,11 @@ findDeltaAverages = function(input)
 }
 
 # Run the mapreduce to get the data.
-# TODO: Return both white and black delta scores.
 results <- findDeltaAverages(engine_score);
-results_keys <- keys(from.dfs(results));
 results_values <- values(from.dfs(results));
 
 # TODO: Limit the file read to only the first 24999 entries.
-results_values <- results_values[1:24999]
+results_values <- results_values[1:24999,];
 
 
 ########################################
@@ -235,10 +227,6 @@ results_values <- results_values[1:24999]
 
 # Convert the values from a matrix into a data frame.
 mapreduce.chess.filter.values <- data.frame(mapreduce.chess.filter.values);
-
-# DEBUG: Copy the original data so it don't have to be reloaded if the code breaks it.
-originalValuesCopy <- mapreduce.chess.filter.values;
-#mapreduce.chess.filter.values <- originalValuesCopy;
 
 # Get the number of rows from the data set.
 numRows <- nrow(mapreduce.chess.filter.values);
@@ -254,22 +242,18 @@ for (i in 1:numRows)
   tempArray[i, "WhiteElo"] <- gsub("[^0-9]", "", sapply(mapreduce.chess.filter.values[i, "WhiteElo"], as.character));
   tempArray[i, "BlackElo"] <- gsub("[^0-9]", "", sapply(mapreduce.chess.filter.values[i, "BlackElo"], as.character));
 }
-mapreduce.chess.filter.values[,"WhiteElo"] = tempArray[,"WhiteElo"];
-mapreduce.chess.filter.values[,"BlackElo"] = tempArray[,"BlackElo"];
+mapreduce.chess.filter.values$WhiteElo = tempArray[,"WhiteElo"];
+mapreduce.chess.filter.values$BlackElo = tempArray[,"BlackElo"];
 #mapreduce.chess.filter.values <- transform(mapreduce.chess.filter.values, WhiteElo = as.numeric(WhiteElo), BlackElo = as.numeric(BlackElo));
 
 # Add the average delta scores of each game to the data set.
-mapreduce.chess.filter.values <- cbind(mapreduce.chess.filter.values, results_values);
-mapreduce.chess.filter.values <- cbind(mapreduce.chess.filter.values, results_values);
-
-# Set the new column names.
-colnames(mapreduce.chess.filter.values) <- c("EventId", "WhiteElo", "BlackElo", "MoveList", "WhiteAverageDeltaScore", "BlackAverageDeltaScore");
+mapreduce.chess.filter.values$WhiteAverageDeltaScore <- results_values$WhiteAverageDeltaScore;
+mapreduce.chess.filter.values$BlackAverageDeltaScore <- results_values$BlackAverageDeltaScore;
 
 # Copy all delta scores and ELOs into a new data frame where white and black do not factor in so we can make the model.
-allElos <- c(mapreduce.chess.filter.values[,"WhiteElo"], mapreduce.chess.filter.values[,"BlackElo"]);
-allAverageDeltaScores <- c(mapreduce.chess.filter.values[,"WhiteAverageDeltaScore"], mapreduce.chess.filter.values[,"BlackAverageDeltaScore"]);
-scoresToElos <- data.frame(allAverageDeltaScores, allElos);
-colnames(scoresToElos) <- c("AverageDeltaScore", "Elo");
+allElos <- as.numeric(c(mapreduce.chess.filter.values[,"WhiteElo"], mapreduce.chess.filter.values[,"BlackElo"]));
+allAverageDeltaScores <- as.numeric(c(mapreduce.chess.filter.values[,"WhiteAverageDeltaScore"], mapreduce.chess.filter.values[,"BlackAverageDeltaScore"]));
+scoresToElos <- data.frame(AverageDeltaScore = allAverageDeltaScores, Elo = allElos);
 
 
 ########################################
@@ -291,17 +275,7 @@ print(modelCoefficients);
 ########################################
 
 # Create a prediction with a 95% confidence interval.
-predictedData_CI95 <- predict(model, newdata = productionData, interval = "confidence", level = 0.95);
-
-
-OrdIn <- order(scoresToElos$AverageDeltaScore);
-par(mfrow = c(1,1));
-plot(scoresToElos$AverageDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Avg Delta Score", ylab = "Elo");
-matlines(scoresToElos$AverageDeltaScore[OrdIn], predictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
-legend("topleft", c("ActualData"), pch=15, col = c("blue") );
-
-
-
+predictedData_CI95 <- predict(model, newdata = scoresToElos, interval = "confidence", level = 0.95);
 
 # Plot the 95% CI model.
 ### Plotter used from DataModelingApproaches.R ###
@@ -311,27 +285,27 @@ plot(scoresToElos$AverageDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", x
 matlines(scoresToElos$AverageDeltaScore[OrdIn], predictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
 legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
 
-# Create a prediction with a 95% prediction interval.
-predictedData_Pred95 <- predict(model, newdata = productionData, interval = "prediction", level = 0.95);
-
-# Plot the 95% prediction model.
-### Plotter used from DataModelingApproaches.R ###
-OrdIn <- order(scoresToElos$AverageDeltaScore);
-par(mfrow = c(1,1));
-plot(scoresToElos$AverageDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Avg Delta Score", ylab = "Elo");
-matlines(scoresToElos$AverageDeltaScore[OrdIn], predictedData_Pred95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
-legend("topleft", c("95% Pred","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
-
-#anova(model);
-
-# Combine the fitted values and residuals into a data frame.
-modelFittedValues <- fitted.values(model);
-modelResiduals <- residuals(model);
-modelValuesAndResiduals <- data.frame(modelFittedValues, modelResiduals);
-colnames(modelValuesAndResiduals) <- c("Fitted Value", "Residual");
-print(modelValuesAndResiduals);
-
-# Plot the distribution of the residual error.
-source("plotForecastErrors.R");
-plotForecastErrors(predictedData_CI95, "95% CI");
-plotForecastErrors(predictedData_Pred95, "95% Pred");
+# # Create a prediction with a 95% prediction interval.
+# predictedData_Pred95 <- predict(model, newdata = productionData, interval = "prediction", level = 0.95);
+# 
+# # Plot the 95% prediction model.
+# ### Plotter used from DataModelingApproaches.R ###
+# OrdIn <- order(scoresToElos$AverageDeltaScore);
+# par(mfrow = c(1,1));
+# plot(scoresToElos$AverageDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Avg Delta Score", ylab = "Elo");
+# matlines(scoresToElos$AverageDeltaScore[OrdIn], predictedData_Pred95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
+# legend("topleft", c("95% Pred","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
+# 
+# #anova(model);
+# 
+# # Combine the fitted values and residuals into a data frame.
+# modelFittedValues <- fitted.values(model);
+# modelResiduals <- residuals(model);
+# modelValuesAndResiduals <- data.frame(modelFittedValues, modelResiduals);
+# colnames(modelValuesAndResiduals) <- c("Fitted Value", "Residual");
+# print(modelValuesAndResiduals);
+# 
+# # Plot the distribution of the residual error.
+# source("plotForecastErrors.R");
+# plotForecastErrors(predictedData_CI95, "95% CI");
+# plotForecastErrors(predictedData_Pred95, "95% Pred");
