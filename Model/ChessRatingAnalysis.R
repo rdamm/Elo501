@@ -142,12 +142,6 @@ findDeltaAverages = function(input)
     gameNumber <- as.character(key);
     scoreList <- as.character(values);
     
-    # DEBUG: Test values.
-    #lines <- data.frame(GameNumber = c("1", "2"), Score = c("18 17 12 8 -5 12 3 -2 22 21 20 13 8 21 11 3 -6 5 1 -10 -21 -1 -26 18 48 48 53 73 46 68 51 60 54 46 70 62 35 54", "101"));
-    #gameNumber <- "1";
-    #scoreList <- "18 17 12 8 -5 12 3 -2 22 21 20 13 8 21 11 3 -6 5 1 -10 -21 -1 -26 18 48 48 53 73 46 68 51 60 54 46 70 62 35 54";
-    #scoreList <- NA;
-    
     # Split the scores up into a vector.
     scoresVector <- c();
     if (is.na(scoreList) == FALSE)
@@ -165,31 +159,26 @@ findDeltaAverages = function(input)
         deltasVector[i] <- as.numeric(scoresVector[i]) - as.numeric(scoresVector[i-1]);
       }
       
-      # Determine the average delta for each player.
-      numWhiteMoves <- 0;
-      numBlackMoves <- 0;
-      totalWhiteDelta <- 0;
-      totalBlackDelta <- 0;
-      for(i in 1:length(deltasVector))
-      {
-        # Black Move (even index)
-        if (i %% 2 != 0)
-        {
-          numBlackMoves <- numBlackMoves + 1;
-          totalBlackDelta <- totalBlackDelta + deltasVector[i];
-        }
-        # White Move (odd index)
-        else
-        {
-          numWhiteMoves <- numWhiteMoves + 1;
-          totalWhiteDelta <- totalWhiteDelta + deltasVector[i];
-        }
-      }
-      averageWhiteDelta <- totalWhiteDelta / numWhiteMoves;
-      averageBlackDelta <- -totalBlackDelta / numBlackMoves;
+      # Split the deltas by player.
+      whiteDeltas <- deltasVector[seq(1, length(deltasVector), 2)];
+      blackDeltas <- deltasVector[seq(2, length(deltasVector), 2)];
+      
+      # Get the mean and standard deviation for each player.
+      meanWhiteDelta <- mean(whiteDeltas);
+      meanBlackDelta <- -mean(blackDeltas);
+      stdDevWhiteDelta <- sd(whiteDeltas);
+      stdDevBlackDelta <- -sd(blackDeltas);
+      
+      # Get the average of each player's lowest 10 scores.
+      lowestWhiteDeltas <- whiteDeltas[which(whiteDeltas %in% head(sort(whiteDeltas), 10))];
+      lowestBlackDeltas <- blackDeltas[which(blackDeltas %in% tail(sort(blackDeltas), 10))];
+      meanLowestWhiteDeltas <- mean(lowestWhiteDeltas);
+      meanLowestBlackDeltas <- -mean(lowestBlackDeltas);
       
       # Encapsulate the values in a data frame.
-      retVals <- data.frame(WhiteAverageDeltaScore = averageWhiteDelta, BlackAverageDeltaScore = averageBlackDelta);
+      retVals <- data.frame(WhiteAverageDeltaScore = meanWhiteDelta, BlackAverageDeltaScore = meanBlackDelta,
+                            WhiteStdDevDeltaScore = stdDevWhiteDelta, BlackStdDevDeltaScore = stdDevBlackDelta,
+                            WhiteLowestDeltaScore = meanLowestWhiteDeltas, BlackLowestDeltaScore = meanLowestBlackDeltas);
       
       #return(keyval(gameNumber, averageWhiteDelta));
       return(keyval(gameNumber, retVals));
@@ -197,7 +186,9 @@ findDeltaAverages = function(input)
     else
     {
       # Encapsulate the values in a data frame.
-      retVals <- data.frame(WhiteAverageDeltaScore = NA, BlackAverageDeltaScore = NA);
+      retVals <- data.frame(WhiteAverageDeltaScore = NA, BlackAverageDeltaScore = NA,
+                            WhiteStdDevDeltaScore = NA, BlackStdDevDeltaScore = NA,
+                            WhiteLowestDeltaScore = NA, BlackLowestDeltaScore = NA);
       
       # TODO: Use NA as default value return.
       return(keyval(gameNumber, retVals));
@@ -249,40 +240,68 @@ mapreduce.chess.filter.values$BlackElo = tempArray[,"BlackElo"];
 # Add the average delta scores of each game to the data set.
 mapreduce.chess.filter.values$WhiteAverageDeltaScore <- results_values$WhiteAverageDeltaScore;
 mapreduce.chess.filter.values$BlackAverageDeltaScore <- results_values$BlackAverageDeltaScore;
+mapreduce.chess.filter.values$WhiteStdDevDeltaScore <- results_values$WhiteStdDevDeltaScore;
+mapreduce.chess.filter.values$BlackStdDevDeltaScore <- results_values$BlackStdDevDeltaScore;
+mapreduce.chess.filter.values$WhiteLowestMeanDeltaScore <- results_values$WhiteLowestDeltaScore;
+mapreduce.chess.filter.values$BlackLowestMeanDeltaScore <- results_values$BlackLowestDeltaScore;
 
 # Copy all delta scores and ELOs into a new data frame where white and black do not factor in so we can make the model.
 allElos <- as.numeric(c(mapreduce.chess.filter.values[,"WhiteElo"], mapreduce.chess.filter.values[,"BlackElo"]));
 allAverageDeltaScores <- as.numeric(c(mapreduce.chess.filter.values[,"WhiteAverageDeltaScore"], mapreduce.chess.filter.values[,"BlackAverageDeltaScore"]));
-scoresToElos <- data.frame(AverageDeltaScore = allAverageDeltaScores, Elo = allElos);
+allStdDevDeltaScores <- as.numeric(c(mapreduce.chess.filter.values[,"WhiteStdDevDeltaScore"], mapreduce.chess.filter.values[,"BlackStdDevDeltaScore"]));
+allLowestMeanDeltaScores <- as.numeric(c(mapreduce.chess.filter.values[,"WhiteLowestMeanDeltaScore"], mapreduce.chess.filter.values[,"BlackLowestMeanDeltaScore"]));
+scoresToElos <- data.frame(AverageDeltaScore = allAverageDeltaScores, StdDevDeltaScore = allStdDevDeltaScores, LowestMeanDeltaScore = allLowestMeanDeltaScores, Elo = allElos);
+
+# Remove any rows containing NA.
+scoresToElos <- na.omit(scoresToElos);
 
 
 ########################################
-### Generate the model for the data.
+### Generate the models for the data.
 ########################################
 
-# Create a linear regression model of delta score to ELO.
-model <- lm(Elo ~ AverageDeltaScore, data = scoresToElos);
-predictedData <- predict(model, newdata = scoresToElos);
+# Create linear regression models for mean delta score to Elo, std dev delta score to Elo.
+meanModel <- lm(Elo ~ AverageDeltaScore, data = scoresToElos);
+stdDevModel <- lm(Elo ~ StdDevDeltaScore, data = scoresToElos);
+lowestMeanModel <- lm(Elo ~ LowestMeanDeltaScore, data = scoresToElos);
 
-# Get the linear model in the form Y = aX + b.
-modelCoefficients = coefficients(model);
-print(modelCoefficients);
+# Get the linear models in the form Y = aX + b.
+meanModelCoefficients = coefficients(meanModel);
+stdDevModelCoefficients = coefficients(stdDevModel);
+lowestMeanModelCoefficients = coefficients(lowestMeanModel);
+print(meanModelCoefficients);
+print(stdDevModelCoefficients);
+print(lowestMeanModelCoefficients);
 #duration = coeffs[1] + coeffs[2]*waiting;
 
 
 ########################################
-### Evaluate the accuracy of the model.
+### Evaluate the accuracy of the models.
 ########################################
 
 # Create a prediction with a 95% confidence interval.
-predictedData_CI95 <- predict(model, newdata = scoresToElos, interval = "confidence", level = 0.95);
+meanPredictedData_CI95 <- predict(meanModel, newdata = scoresToElos, interval = "confidence", level = 0.95);
+stdDevPredictedData_CI95 <- predict(stdDevModel, newdata = scoresToElos, interval = "confidence", level = 0.95);
+lowestMeanDevPredictedData_CI95 <- predict(lowestMeanModel, newdata = scoresToElos, interval = "confidence", level = 0.95);
 
-# Plot the 95% CI model.
+# Plot the 95% CI models.
 ### Plotter used from DataModelingApproaches.R ###
 OrdIn <- order(scoresToElos$AverageDeltaScore);
 par(mfrow = c(1,1));
-plot(scoresToElos$AverageDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Avg Delta Score", ylab = "Elo");
-matlines(scoresToElos$AverageDeltaScore[OrdIn], predictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
+plot(scoresToElos$AverageDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Mean Delta Score", ylab = "Elo");
+matlines(scoresToElos$AverageDeltaScore[OrdIn], meanPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
+legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
+
+OrdIn <- order(scoresToElos$StdDevDeltaScore);
+par(mfrow = c(1,1));
+plot(scoresToElos$StdDevDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Std Dev Delta Score", ylab = "Elo");
+matlines(scoresToElos$StdDevDeltaScore[OrdIn], stdDevPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
+legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
+
+OrdIn <- order(scoresToElos$LowestMeanDeltaScore);
+par(mfrow = c(1,1));
+plot(scoresToElos$LowestMeanDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Lowest Mean Delta Score", ylab = "Elo");
+matlines(scoresToElos$LowestMeanDeltaScore[OrdIn], lowestMeanDevPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
 legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
 
 # # Create a prediction with a 95% prediction interval.
