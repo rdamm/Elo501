@@ -163,17 +163,20 @@ findDeltaAverages = function(input)
       whiteDeltas <- deltasVector[seq(1, length(deltasVector), 2)];
       blackDeltas <- deltasVector[seq(2, length(deltasVector), 2)];
       
+      # Negate the black deltas since they go in the opposite direction.
+      blackDeltas <- -blackDeltas;
+      
       # Get the mean and standard deviation for each player.
       meanWhiteDelta <- mean(whiteDeltas);
-      meanBlackDelta <- -mean(blackDeltas);
+      meanBlackDelta <- mean(blackDeltas);
       stdDevWhiteDelta <- sd(whiteDeltas);
-      stdDevBlackDelta <- -sd(blackDeltas);
+      stdDevBlackDelta <- sd(blackDeltas);
       
       # Get the average of each player's lowest 10 scores.
       lowestWhiteDeltas <- whiteDeltas[which(whiteDeltas %in% head(sort(whiteDeltas), 10))];
-      lowestBlackDeltas <- blackDeltas[which(blackDeltas %in% tail(sort(blackDeltas), 10))];
+      lowestBlackDeltas <- blackDeltas[which(blackDeltas %in% head(sort(blackDeltas), 10))];
       meanLowestWhiteDeltas <- mean(lowestWhiteDeltas);
-      meanLowestBlackDeltas <- -mean(lowestBlackDeltas);
+      meanLowestBlackDeltas <- mean(lowestBlackDeltas);
       
       # Encapsulate the values in a data frame.
       retVals <- data.frame(WhiteAverageDeltaScore = meanWhiteDelta, BlackAverageDeltaScore = meanBlackDelta,
