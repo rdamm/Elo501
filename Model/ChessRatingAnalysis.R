@@ -263,19 +263,49 @@ scoresToElos <- na.omit(scoresToElos);
 ### Generate the models for the data.
 ########################################
 
+# Summarize the data.
+summary(scoresToElos);
+cor(scoresToElos);
+
+# Plot the variables against each other.
+# NOTE: This takes a long time to plot.
+#pairs(scoresToElos);
+
 # Create linear regression models for mean delta score to Elo, std dev delta score to Elo.
 meanModel <- lm(Elo ~ AverageDeltaScore, data = scoresToElos);
 stdDevModel <- lm(Elo ~ StdDevDeltaScore, data = scoresToElos);
 lowestMeanModel <- lm(Elo ~ LowestMeanDeltaScore, data = scoresToElos);
+multiModel <- lm(Elo ~ AverageDeltaScore * StdDevDeltaScore * LowestMeanDeltaScore, data = scoresToElos);
 
 # Get the linear models in the form Y = aX + b.
 meanModelCoefficients = coefficients(meanModel);
 stdDevModelCoefficients = coefficients(stdDevModel);
 lowestMeanModelCoefficients = coefficients(lowestMeanModel);
+multiCoefficients = coefficients(multiModel);
 print(meanModelCoefficients);
 print(stdDevModelCoefficients);
 print(lowestMeanModelCoefficients);
-#duration = coeffs[1] + coeffs[2]*waiting;
+print(multiCoefficients);
+
+# Get the summaries of the models.
+summary(meanModel);
+summary(stdDevModel);
+summary(lowestMeanModel);
+summary(multiModel);
+anova(meanModel);
+anova(stdDevModel);
+anova(lowestMeanModel);
+anova(multiModel);
+
+# Compare the fitted values and residuals for each model.
+meanModelValuesAndResiduals <- data.frame(FittedValue = fitted.values(meanModel), Residual = residuals(meanModel));
+stdDevModelValuesAndResiduals <- data.frame(FittedValue = fitted.values(stdDevModel), Residual = residuals(stdDevModel));
+lowestMeanModelValuesAndResiduals <- data.frame(FittedValue = fitted.values(lowestMeanModel), Residual = residuals(lowestMeanModel));
+multiModelValuesAndResiduals <- data.frame(FittedValue = fitted.values(multiModel), Residual = residuals(multiModel));
+summary(meanModelValuesAndResiduals);
+summary(stdDevModelValuesAndResiduals);
+summary(lowestMeanModelValuesAndResiduals);
+summary(multiModelValuesAndResiduals);
 
 
 ########################################
@@ -285,49 +315,41 @@ print(lowestMeanModelCoefficients);
 # Create a prediction with a 95% confidence interval.
 meanPredictedData_CI95 <- predict(meanModel, newdata = scoresToElos, interval = "confidence", level = 0.95);
 stdDevPredictedData_CI95 <- predict(stdDevModel, newdata = scoresToElos, interval = "confidence", level = 0.95);
-lowestMeanDevPredictedData_CI95 <- predict(lowestMeanModel, newdata = scoresToElos, interval = "confidence", level = 0.95);
+lowestMeanPredictedData_CI95 <- predict(lowestMeanModel, newdata = scoresToElos, interval = "confidence", level = 0.95);
+multiPredictedData_CI95 <- predict(multiModel, newdata = scoresToElos, interval = "confidence", level = 0.95);
 
-# Plot the 95% CI models.
 ### Plotter used from DataModelingApproaches.R ###
+# Plot the 95% CI models.
+# Average Delta Score Model
 OrdIn <- order(scoresToElos$AverageDeltaScore);
 par(mfrow = c(1,1));
 plot(scoresToElos$AverageDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Mean Delta Score", ylab = "Elo");
 matlines(scoresToElos$AverageDeltaScore[OrdIn], meanPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
 legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
 
+# Standard Deviation Delta Score Model
 OrdIn <- order(scoresToElos$StdDevDeltaScore);
 par(mfrow = c(1,1));
 plot(scoresToElos$StdDevDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Std Dev Delta Score", ylab = "Elo");
 matlines(scoresToElos$StdDevDeltaScore[OrdIn], stdDevPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
 legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
 
+# Lowest Mean Delta Score Model
 OrdIn <- order(scoresToElos$LowestMeanDeltaScore);
 par(mfrow = c(1,1));
 plot(scoresToElos$LowestMeanDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Lowest Mean Delta Score", ylab = "Elo");
-matlines(scoresToElos$LowestMeanDeltaScore[OrdIn], lowestMeanDevPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
+matlines(scoresToElos$LowestMeanDeltaScore[OrdIn], lowestMeanPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
 legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
 
-# # Create a prediction with a 95% prediction interval.
-# predictedData_Pred95 <- predict(model, newdata = productionData, interval = "prediction", level = 0.95);
-# 
-# # Plot the 95% prediction model.
-# ### Plotter used from DataModelingApproaches.R ###
-# OrdIn <- order(scoresToElos$AverageDeltaScore);
-# par(mfrow = c(1,1));
-# plot(scoresToElos$AverageDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Avg Delta Score", ylab = "Elo");
-# matlines(scoresToElos$AverageDeltaScore[OrdIn], predictedData_Pred95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
-# legend("topleft", c("95% Pred","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
-# 
-# #anova(model);
-# 
-# # Combine the fitted values and residuals into a data frame.
-# modelFittedValues <- fitted.values(model);
-# modelResiduals <- residuals(model);
-# modelValuesAndResiduals <- data.frame(modelFittedValues, modelResiduals);
-# colnames(modelValuesAndResiduals) <- c("Fitted Value", "Residual");
-# print(modelValuesAndResiduals);
-# 
-# # Plot the distribution of the residual error.
-# source("plotForecastErrors.R");
-# plotForecastErrors(predictedData_CI95, "95% CI");
-# plotForecastErrors(predictedData_Pred95, "95% Pred");
+# Multi-Model
+OrdIn <- order(scoresToElos$AverageDeltaScore);
+par(mfrow = c(1,1));
+plot(scoresToElos$AverageDeltaScore * scoresToElos$StdDevDeltaScore * scoresToElos$LowestMeanDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Multi Score", ylab = "Elo");
+matlines(scoresToElos$AverageDeltaScore[OrdIn], multiPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
+legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
+
+# Plot the distribution of the residual error.
+source("plotForecastErrors.R");
+plotForecastErrors(meanPredictedData_CI95, "95% CI - Mean");
+plotForecastErrors(stdDevPredictedData_CI95, "95% CI - Std Dev");
+plotForecastErrors(lowestMeanPredictedData_CI95, "95% CI - Lowest Mean");
