@@ -1,3 +1,9 @@
+#################################################
+# ChessRatingAnalysis.R
+# Authors: Ryan Damm, José Luna, Cuong Ich Truong
+# Date: 2014-04-21
+#################################################
+
 ##### Initialization
 
 rm(list = ls())                 # Clear the history from the previous run (i.e. variables)
@@ -258,13 +264,6 @@ OrdIn <- order(scoresToElos$LowestMeanDeltaScore);
 par(mfrow = c(1,1));
 plot(scoresToElos$LowestMeanDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Lowest Mean Delta Score", ylab = "Elo");
 matlines(scoresToElos$LowestMeanDeltaScore[OrdIn], lowestMeanPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
-legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
-
-# Multi-Model
-OrdIn <- order(scoresToElos$AverageDeltaScore);
-par(mfrow = c(1,1));
-plot(scoresToElos$AverageDeltaScore * scoresToElos$StdDevDeltaScore * scoresToElos$LowestMeanDeltaScore, scoresToElos$Elo, pch = 19, col = "blue", xlab = "Multi Score", ylab = "Elo");
-matlines(scoresToElos$AverageDeltaScore[OrdIn], multiPredictedData_CI95[OrdIn,], type = "l",col = c(1,2,2), lty = c(1,1,1), lwd=3);
 legend("topleft", c("95% CI","FittedLine","ActualData"), pch=15, col = c("red","black","blue") );
 
 # Plot the distribution of the residual error.
